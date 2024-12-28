@@ -18,6 +18,7 @@ import { useHotkeys, useLocalStorage } from "@mantine/hooks";
 export default function App() {
   const [tasks, setTasks] = useState([]);
   const [opened, setOpened] = useState(false);
+  const [selectedTask, setSelectedTasks] = useState(null);
 
   const [colorScheme, setColorScheme] = useLocalStorage({
     key: "mantine-color-scheme",
@@ -31,14 +32,41 @@ export default function App() {
 
   const taskTitle = useRef("");
   const taskSummary = useRef("");
+  const taskState = useRef(null);
+  const taskDeadline = useRef(new Date());
+  
+  const [stateSort, setStateSort] = useState("None");
+
+  const stateRanking = {
+    "Done": 1,
+    "Not done": 2,
+    "Doing right now": 3
+  }
 
   function createTask() {
     tasks.push({
       title: taskTitle.current.value,
       summary: taskSummary.current.value,
+      state: taskState.current.value,
+      deadline: taskDeadline.current.value
     });
     setTasks(tasks);
     saveTasks(tasks);
+    setOpened(false);
+  }
+
+  function updateTask(index) {
+    let updatedTask = {
+      title: taskTitle.current.value,
+      summary: taskSummary.current.value,
+      state: taskState.current.value,
+      deadline: taskDeadline.current.value
+    };
+    tasks.splice(index, 1, updatedTask);
+    setTasks(tasks);
+    saveTasks(tasks);
+    setSelectedTasks(null);
+    setOpened(false);
   }
 
   function deleteTask(index) {
@@ -60,13 +88,23 @@ export default function App() {
     }
   }
 
+  function sortTasks() {
+    let sortedTasks = tasks;
+    sortedTasks = sortedTasks.sort((task1, task2) => stateRanking[task1.state]-stateRanking[task2.state]);
+    console.log(sortedTasks);
+  }
+
   function saveTasks(tasks) {
     localStorage.setItem("tasks", JSON.stringify(tasks));
   }
 
   useEffect(() => {
     loadTasks();
-  }, []);
+  }, [tasks]);
+
+  useEffect(() => {
+    sortTasks();
+  }, [stateSort]);
 
   return (
     <ColorSchemeProvider
@@ -82,10 +120,11 @@ export default function App() {
           <Modal
             opened={opened}
             size={"md"}
-            title={"New Task"}
+            title={selectedTask ? "Edit Task" : "New Task"}
             withCloseButton={false}
             onClose={() => {
               setOpened(false);
+              setSelectedTasks(null);
             }}
             centered
           >
@@ -93,6 +132,7 @@ export default function App() {
               mt={"md"}
               ref={taskTitle}
               placeholder={"Task Title"}
+              defaultValue={selectedTask ? tasks[selectedTask].title : ""}
               required
               label={"Title"}
             />
@@ -102,10 +142,24 @@ export default function App() {
               placeholder={"Task Summary"}
               label={"Summary"}
             />
+            <select
+              ref={taskState}
+              defaultValue={selectedTask ? tasks[selectedTask].state : ""}
+            >
+              <option value="Done">Done</option>
+              <option value="Not done">Not done</option>
+              <option value="Doing right now">Doing right now</option>
+            </select>
+            <input
+              ref={taskDeadline}
+              type="date" 
+              defaultValue={selectedTask ? tasks[selectedTask].deadline : ""}
+            />
             <Group mt={"md"} position={"apart"}>
               <Button
                 onClick={() => {
                   setOpened(false);
+                  setSelectedTasks(null);
                 }}
                 variant={"subtle"}
               >
@@ -113,10 +167,10 @@ export default function App() {
               </Button>
               <Button
                 onClick={() => {
-                  createTask();
+                  selectedTask ? updateTask(selectedTask) : createTask();
                 }}
               >
-                Create Task
+                {selectedTask ? "Update task" : "Create Task"}
               </Button>
             </Group>
           </Modal>
@@ -130,6 +184,12 @@ export default function App() {
               >
                 My Tasks
               </Title>
+              <select>
+                <option value="None" onSelect={() => setStateSort("None")}>None</option>
+                <option value="Done" onSelect={() => setStateSort("Done")}>Done</option>
+                <option value="Not done" onSelect={() => setStateSort("Not done")}>Not done</option>
+                <option value="Doing right now" onSelect={() => setStateSort("Doing right now")}>Doing right now</option>
+            </select>
               <ActionIcon
                 color={"blue"}
                 onClick={() => toggleColorScheme()}
@@ -149,6 +209,8 @@ export default function App() {
                     <Card withBorder key={index} mt={"sm"}>
                       <Group position={"apart"}>
                         <Text weight={"bold"}>{task.title}</Text>
+                        <Text weight={"bold"}>{task.state}</Text>
+                        <Text weight={"bold"}>{task.deadline}</Text>
                         <ActionIcon
                           onClick={() => {
                             deleteTask(index);
@@ -158,6 +220,15 @@ export default function App() {
                         >
                           <Trash />
                         </ActionIcon>
+                        <Button
+                          onClick={() => {
+                            setSelectedTasks(index);
+                            console.log(index);
+                            setOpened(true);
+                          }}
+                        >
+                          Edit
+                        </Button>
                       </Group>
                       <Text color={"dimmed"} size={"md"} mt={"sm"}>
                         {task.summary
